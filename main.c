@@ -155,6 +155,82 @@ static int infinity_yaw_decode(struct can_frame *frame)
 	return -EPROTONOSUPPORT;
 }
 
+#define MERCEDES_YAW_RATE_SCALE		(0.005f)	/* degree/s/digit - from Bosch datasheet */
+#define MERCEDES_ACC_SCALE 			(0.0001274f) /* g/digit - from Bosch datasheet */
+/* Mercedes pn: A 006 542 26 18
+ * No need to be feed with Sync message, starts spreaming after power on
+ * rate is about 20mS => 50 Hz */
+static int mercedes_yaw_decode(struct can_frame *frame)
+{
+	if ((frame->can_id == 0x150) && (frame->can_dlc == 8)) {
+		int y_acc;
+		int yaw_rate;
+		char *d = frame->data;
+
+		yaw_rate = 0x8000 - get_unsigned_be16(d + 0);
+		/* bytes 2..3: 0C 9D */
+		y_acc = 0x8000 - get_unsigned_be16(d + 4);
+		/* byte 6[3..0] - low 4 bits - counter */
+		/* byte 7 - look like crc */
+
+		if (0) {
+			int x[4];
+
+			x[0] = 0x8000 - get_unsigned_be16(d + 0);
+			x[1] = 0x8000 - get_unsigned_be16(d + 2);
+			x[2] = 0x8000 - get_unsigned_be16(d + 4);
+			//x[3] = 0x8000 - get_unsigned_be16(d + 6);
+			printf("RAW: %5d, %5d, %5d\n",
+				x[0], x[1], x[2]);
+		}
+
+		printf("Y Acc: %f g, yaw: %f\n",
+			y_acc * MERCEDES_ACC_SCALE,
+			yaw_rate * MERCEDES_YAW_RATE_SCALE);
+
+		return 0;
+	}
+	if ((frame->can_id == 0x151) && (frame->can_dlc == 8)) {
+		int x_acc;
+		int yaw_rate;
+		char *d = frame->data;
+
+		yaw_rate = 0x8000 - get_unsigned_be16(d + 0);
+		/* bytes 2..3: 00 00 */
+		x_acc = 0x8000 - get_unsigned_be16(d + 4);
+		/* byte 6[3..0] - low 4 bits - counter */
+		/* byte 7 - look like crc */
+		if (0) {
+			int x[4];
+
+			x[0] = 0x8000 - get_unsigned_be16(d + 0);
+			x[1] = 0x8000 - get_unsigned_be16(d + 2);
+			x[2] = 0x8000 - get_unsigned_be16(d + 4);
+
+			printf("RAW: %5d, %5d, %5d\n",
+				x[0], x[1], x[2]);
+		}
+
+
+		printf("X Acc: %f g, yaw: %f\n",
+			x_acc * MERCEDES_ACC_SCALE,
+			yaw_rate * MERCEDES_YAW_RATE_SCALE);
+		return 0;
+	}
+	if ((frame->can_id == 0x156) && (frame->can_dlc == 8)) {
+		char *d = frame->data;
+
+		/* bytes 0..5,5: const data 30 00 00 00 00 00 2x */
+		/* byte 6[3..0] - low 4 bits - counter */
+		/* byte 7 - look like crc */
+
+		return 0;
+	}
+
+	/* unsupported frame */
+	return -EPROTONOSUPPORT;
+}
+
 int main(int argc, char **argv)
 {
 	int s;
@@ -207,6 +283,10 @@ int main(int argc, char **argv)
 
 		if ((frame.can_id == 0x130) || (frame.can_id == 0x140)) {
 			ret = infinity_yaw_decode(&frame);
+		}
+
+		if ((frame.can_id == 0x150) || (frame.can_id == 0x151) || (frame.can_id == 0x156)) {
+			ret = mercedes_yaw_decode(&frame);
 		}
 	} while (nbytes >= 0);
 
