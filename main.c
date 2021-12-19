@@ -67,6 +67,18 @@ static int subaru_yaw_decode(struct can_frame *frame)
 		/* unknown data */
 		/* 27542AG011: 1E 76 4C 88 12 00 00 00 */
 		/* 27542AG012: 94 F6 6A F7 13 00 00 00 */
+		char *d = frame->data;
+
+		/* bytes 0 and 1 are always zero */
+		x[0] = get_be16(d + 0);
+		x[1] = get_be16(d + 2);
+		x[2] = get_be16(d + 4);
+		x[2] = get_be16(d + 6);
+
+		if (0) {
+			printf("CAL?: %d, %d, %d, %d\n", x[0], x[1], x[2], x[3]);
+		}
+
 		return 0;
 	}
 
